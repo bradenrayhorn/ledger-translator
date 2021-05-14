@@ -3,6 +3,7 @@ package tda
 import (
 	"net/http"
 
+	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
@@ -13,7 +14,7 @@ type tdaProvider struct {
 func NewTDAProvider() tdaProvider {
 	return tdaProvider{
 		oauth: oauth2.Config{
-			ClientID: "@AMER.OAUTHAP",
+			ClientID: viper.GetString("client_id") + "@AMER.OAUTHAP",
 			Endpoint: oauth2.Endpoint{
 				TokenURL: "https://api.tdameritrade.com/v1/oauth2/token",
 				AuthURL:  "https://auth.tdameritrade.com/auth",
