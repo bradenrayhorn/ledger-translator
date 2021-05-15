@@ -28,7 +28,7 @@ func (t tdaProvider) Key() string {
 	return "tda"
 }
 
-func (t tdaProvider) Authenticate(w http.ResponseWriter, req *http.Request) {
+func (t tdaProvider) Authenticate(w http.ResponseWriter, req *http.Request, jwtString string, userID string) {
 	url := t.oauth.AuthCodeURL("bloop")
 
 	http.Redirect(w, req, url, http.StatusFound)
@@ -38,7 +38,7 @@ func (t tdaProvider) Callback(w http.ResponseWriter, req *http.Request) {
 	code := req.URL.Query().Get("code")
 	state := req.URL.Query().Get("state")
 
-	if state != "bloop" {
+	if len(state) == 0 || state != "bloop" {
 		w.Write([]byte("invalid state"))
 		return
 	}
