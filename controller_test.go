@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/bradenrayhorn/ledger-translator/provider"
-	"github.com/bradenrayhorn/ledger-translator/provider/tda"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/suite"
 )
@@ -18,6 +17,21 @@ type ControllerTestSuite struct {
 	suite.Suite
 	c     RouteController
 	token string
+}
+
+type TestProvider struct {
+}
+
+func (p TestProvider) Key() string {
+	return "test"
+}
+
+func (p TestProvider) Authenticate(w http.ResponseWriter, req *http.Request, jwtString string, userID string) {
+	http.Redirect(w, req, "http://url.example", http.StatusFound)
+}
+
+func (p TestProvider) Callback(w http.ResponseWriter, req *http.Request) {
+	http.Redirect(w, req, "http://ok.ok", http.StatusFound)
 }
 
 func (s *ControllerTestSuite) SetupTest() {
@@ -30,12 +44,12 @@ func (s *ControllerTestSuite) SetupTest() {
 
 	s.c = RouteController{
 		jwtService: jwtService,
-		providers:  []provider.Provider{tda.NewTDAProvider()},
+		providers:  []provider.Provider{TestProvider{}},
 	}
 }
 
 func (s *ControllerTestSuite) TestRecognizesProvider() {
-	provider := s.c.getProvider(url.Values{"provider": []string{"tda"}})
+	provider := s.c.getProvider(url.Values{"provider": []string{"test"}})
 	s.Require().NotNil(provider)
 }
 
@@ -46,17 +60,18 @@ func (s *ControllerTestSuite) TestDoesNotRecognizeInvalidProvider() {
 
 func (s *ControllerTestSuite) TestCanAuthenticate() {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/authenticate?provider=tda&jwt="+s.token, nil)
+	req, _ := http.NewRequest("GET", "/authenticate?provider=test&jwt="+s.token, nil)
 
 	handler := http.HandlerFunc(s.c.Authenticate)
 	handler.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusFound, w.Code)
+	s.Require().Equal("http://url.example", w.HeaderMap.Get("location"))
 }
 
 func (s *ControllerTestSuite) TestCannotAuthenticateWithInvalidJWT() {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/authenticate?provider=tda&jwt=test", nil)
+	req, _ := http.NewRequest("GET", "/authenticate?provider=test&jwt=test", nil)
 	handler := http.HandlerFunc(s.c.Authenticate)
 	handler.ServeHTTP(w, req)
 
