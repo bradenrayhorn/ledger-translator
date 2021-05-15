@@ -1,0 +1,15 @@
+version: '3'
+
+networks:
+  test-network:
+    driver: bridge
+
+services:
+  tests:
+    build:
+      context: .
+      dockerfile: ./test.Dockerfile
+    networks:
+      - test-network
+    volumes:
+      - ./reports:/go/src/app/reports
