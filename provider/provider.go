@@ -1,9 +1,10 @@
 package provider
 
-import "net/http"
+import (
+	"golang.org/x/oauth2"
+)
 
 type Provider interface {
 	Key() string
-	Authenticate(w http.ResponseWriter, req *http.Request, jwtString string, userID string)
-	Callback(w http.ResponseWriter, req *http.Request)
+	GetOAuthConfig() *oauth2.Config
 }

@@ -1,52 +1,110 @@
 package main
 
 import (
+	"context"
 	"net/http"
-	"net/url"
+	"time"
 
 	"github.com/bradenrayhorn/ledger-translator/provider"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/bradenrayhorn/ledger-translator/service"
+	"github.com/go-redis/redis/v8"
 )
 
 type RouteController struct {
-	providers  []provider.Provider
-	jwtService JWTService
+	providers      []provider.Provider
+	sessionService service.Session
+	sessionDB      *redis.Client
+	tokenDB        *redis.Client
 }
 
 func (c RouteController) Authenticate(w http.ResponseWriter, req *http.Request) {
-	jwtString := req.URL.Query().Get("jwt")
-	token, err := c.jwtService.ParseToken(jwtString)
+	cookie, err := req.Cookie("session_id")
 	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("invalid token"))
+		writeError(w, http.StatusUnauthorized, "invalid session")
 		return
 	}
 
-	userID := token.Claims.(jwt.MapClaims)["user_id"].(string)
+	sessionID := cookie.Value
+	_, err = c.sessionService.GetSession(sessionID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid session")
+		return
+	}
 
-	provider := c.getProvider(req.URL.Query())
+	provider := c.getProvider(req.URL.Query().Get("provider"))
 	if provider == nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte("invalid provider"))
+		writeError(w, http.StatusUnprocessableEntity, "invalid provider")
 		return
 	}
 
-	provider.Authenticate(w, req, jwtString, userID)
+	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB)
+	url, state, err := oauthService.Authenticate(provider.Key())
+
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start oauth")
+		return
+	}
+
+	_, err = c.sessionDB.Set(context.Background(), sessionID, state, time.Minute*15).Result()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save state")
+		return
+	}
+
+	http.Redirect(w, req, url, http.StatusFound)
 }
 
 func (c RouteController) Callback(w http.ResponseWriter, req *http.Request) {
-	provider := c.getProvider(req.URL.Query())
-
-	if provider == nil {
-		w.Write([]byte("invalid provider"))
+	cookie, err := req.Cookie("session_id")
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid session")
 		return
 	}
 
-	provider.Callback(w, req)
+	sessionID := cookie.Value
+	userID, err := c.sessionService.GetSession(sessionID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid session")
+		return
+	}
+
+	state, err := service.OAuthDecodeState(req.URL.Query().Get("state"))
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid state")
+		return
+	}
+
+	savedStateString, err := c.sessionDB.Get(context.Background(), sessionID).Result()
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid state")
+		return
+	}
+	err = c.sessionDB.Del(context.Background(), sessionID).Err()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to remove state")
+		return
+	}
+	savedState, err := service.OAuthDecodeState(savedStateString)
+	if err != nil || state.Random != savedState.Random || state.Provider != savedState.Provider {
+		writeError(w, http.StatusUnauthorized, "invalid state")
+		return
+	}
+
+	provider := c.getProvider(state.Provider)
+	if provider == nil {
+		writeError(w, http.StatusUnauthorized, "invalid state")
+		return
+	}
+
+	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB)
+	err = oauthService.SaveToken(userID, state.Provider, req.URL.Query().Get("code"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save state")
+		return
+	}
 }
 
-func (c RouteController) getProvider(queryValues url.Values) provider.Provider {
-	providerKey := queryValues.Get("provider")
+func (c RouteController) getProvider(providerKey string) provider.Provider {
 	var provider provider.Provider
 	for _, p := range c.providers {
 		if p.Key() == providerKey {
@@ -56,4 +114,9 @@ func (c RouteController) getProvider(queryValues url.Values) provider.Provider {
 	}
 
 	return provider
+}
+
+func writeError(w http.ResponseWriter, statusCode int, message string) {
+	w.WriteHeader(statusCode)
+	w.Write([]byte(message))
 }

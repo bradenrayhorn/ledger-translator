@@ -1,12 +1,12 @@
 package main
 
 import (
-	"crypto/rsa"
 	"log"
 	"net/http"
 
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/provider/tda"
+	"github.com/bradenrayhorn/ledger-translator/service"
 	"github.com/spf13/viper"
 )
 
@@ -15,17 +15,21 @@ func main() {
 
 	loadConfig()
 
-	publicKey, err := readKeyFromFile(true, viper.GetString("rsa_public_path"))
-	if err != nil {
-		log.Printf("failed to load public key: %e", err)
-	}
+	println("connecting to databases...")
+	oauthSessionDB := NewRedisClient("oauth_sessions")
+	tokenDB := NewRedisClient("oauth_tokens")
 
-	jwtService := JWTService{publicKey: publicKey.(*rsa.PublicKey)}
+	grpcClient := NewGRPCClient()
 
 	var providers []provider.Provider
 	providers = append(providers, tda.NewTDAProvider())
 
-	controller := RouteController{providers: providers, jwtService: jwtService}
+	controller := RouteController{
+		providers:      providers,
+		sessionService: service.NewSessionService(grpcClient.session),
+		sessionDB:      oauthSessionDB,
+		tokenDB:        tokenDB,
+	}
 
 	http.HandleFunc("/authenticate", controller.Authenticate)
 	http.HandleFunc("/callback", controller.Callback)

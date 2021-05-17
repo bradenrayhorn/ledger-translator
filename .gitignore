@@ -1,4 +1,5 @@
 .DS_Store
 ledger-translator
 .env
-jwt_rsa.pub
+reports
+

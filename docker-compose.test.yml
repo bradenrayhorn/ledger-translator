@@ -9,7 +9,18 @@ services:
     build:
       context: .
       dockerfile: ./test.Dockerfile
+    env_file:
+      - .env.test
+    depends_on:
+      - keydb
     networks:
       - test-network
     volumes:
       - ./reports:/go/src/app/reports
+  keydb:
+    image: eqalpha/keydb:latest
+    ports:
+      - "6379:6379"
+    restart: on-failure
+    networks:
+      - test-network
