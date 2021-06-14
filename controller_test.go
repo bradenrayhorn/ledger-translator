@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -16,6 +17,12 @@ import (
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/service"
 	"github.com/go-redis/redis/v8"
+	"github.com/hashicorp/go-hclog"
+	vaultAPI "github.com/hashicorp/vault/api"
+	"github.com/hashicorp/vault/builtin/logical/transit"
+	vaultHTTP "github.com/hashicorp/vault/http"
+	"github.com/hashicorp/vault/sdk/logical"
+	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
@@ -26,11 +33,12 @@ var tokenURL = ""
 
 type ControllerTestSuite struct {
 	suite.Suite
-	c         RouteController
-	sessionID string
-	conn      *grpc.ClientConn
-	sessionDB *redis.Client
-	tokenDB   *redis.Client
+	c             RouteController
+	sessionID     string
+	conn          *grpc.ClientConn
+	sessionDB     *redis.Client
+	tokenDB       *redis.Client
+	vaultListener net.Listener
 }
 
 type TestProvider struct {
@@ -73,6 +81,31 @@ func (s *ControllerTestSuite) SetupTest() {
 
 	client := session.NewSessionAuthenticatorClient(conn)
 
+	// configure vault
+	vaultLogger := hclog.New(&hclog.LoggerOptions{
+		Output: io.Discard,
+	})
+	coreConfig := &vault.CoreConfig{
+		LogicalBackends: map[string]logical.Factory{
+			"transit": transit.Factory,
+		},
+		Logger: vaultLogger,
+	}
+	core, _, rootToken := vault.TestCoreUnsealedWithConfig(s.T(), coreConfig)
+	ln, addr := vaultHTTP.TestServer(s.T(), core)
+	conf := vaultAPI.DefaultConfig()
+	conf.Address = addr
+	vaultClient, err := vaultAPI.NewClient(conf)
+	s.Require().Nil(err)
+	vaultClient.SetToken(rootToken)
+	err = vaultClient.Sys().Mount("transit", &vaultAPI.MountInput{
+		Type: "transit",
+	})
+	s.Require().Nil(err)
+	_, err = vaultClient.Logical().Write("transit/keys/my-key", map[string]interface{}{})
+	s.Require().Nil(err)
+
+	s.vaultListener = ln
 	s.sessionID = "good-id"
 	s.sessionDB = NewRedisClient("oauth_sessions")
 	s.tokenDB = NewRedisClient("oauth_tokens")
@@ -81,11 +114,13 @@ func (s *ControllerTestSuite) SetupTest() {
 		sessionDB:      s.sessionDB,
 		tokenDB:        s.tokenDB,
 		sessionService: service.NewSessionService(client),
+		vaultClient:    vaultClient,
 	}
 }
 
 func (s *ControllerTestSuite) TearDownTest() {
 	s.conn.Close()
+	s.vaultListener.Close()
 }
 
 func (s *ControllerTestSuite) TestRecognizesProvider() {
@@ -195,7 +230,11 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	savedToken := s.tokenDB.Get(context.Background(), base64.RawURLEncoding.EncodeToString(tokenKey))
 	s.Require().Nil(savedToken.Err())
 	var token oauth2.Token
-	savedTokenString, _ := base64.RawStdEncoding.DecodeString(savedToken.Val())
+	decrypted, err := s.c.vaultClient.Logical().Write("transit/decrypt/my-key", map[string]interface{}{
+		"ciphertext": savedToken.Val(),
+	})
+	s.Require().Nil(err)
+	savedTokenString, _ := base64.StdEncoding.DecodeString(decrypted.Data["plaintext"].(string))
 	s.Require().Nil(json.Unmarshal(savedTokenString, &token))
 	s.Require().Equal("access-token", token.AccessToken)
 	s.Require().Equal("refresh-token", token.RefreshToken)

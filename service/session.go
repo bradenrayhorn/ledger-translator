@@ -19,6 +19,8 @@ func NewSessionService(client session.SessionAuthenticatorClient) Session {
 func (s Session) GetSession(sessionID string) (string, error) {
 	r, err := s.client.Authenticate(context.Background(), &session.SessionAuthenticateRequest{
 		SessionID: sessionID,
+		UserAgent: "test",
+		IP:        "127.0.0.1",
 	})
 	if err != nil {
 		return "", err

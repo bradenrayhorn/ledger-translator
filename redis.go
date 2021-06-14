@@ -17,7 +17,7 @@ func NewRedisClient(name string) *redis.Client {
 
 	_, err := rdb.Ping(context.Background()).Result()
 	if err != nil {
-		log.Panic(err)
+		log.Println(err)
 	}
 
 	return rdb

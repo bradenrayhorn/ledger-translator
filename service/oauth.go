@@ -8,12 +8,15 @@ import (
 	"fmt"
 
 	"github.com/go-redis/redis/v8"
+	vaultAPI "github.com/hashicorp/vault/api"
+	"github.com/spf13/viper"
 	"golang.org/x/oauth2"
 )
 
 type OAuth struct {
 	oauthConfig oauth2.Config
 	tokenDB     *redis.Client
+	vaultClient *vaultAPI.Client
 }
 
 type OAuthState struct {
@@ -26,10 +29,11 @@ type TokenKey struct {
 	Provider string
 }
 
-func NewOAuthService(config oauth2.Config, tokenDB *redis.Client) OAuth {
+func NewOAuthService(config oauth2.Config, tokenDB *redis.Client, vaultClient *vaultAPI.Client) OAuth {
 	return OAuth{
 		oauthConfig: config,
 		tokenDB:     tokenDB,
+		vaultClient: vaultClient,
 	}
 }
 
@@ -54,23 +58,36 @@ func (o OAuth) Authenticate(provider string) (string, string, error) {
 }
 
 func (o OAuth) SaveToken(userID string, provider string, code string) error {
-	token, err := o.oauthConfig.Exchange(context.Background(), code)
-	if err != nil {
-		fmt.Println(err.Error())
-		return err
-	}
-	tokenString, err := json.Marshal(token)
+	token, err := o.oauthConfig.Exchange(context.Background(), code, oauth2.AccessTypeOffline)
 	if err != nil {
 		return err
 	}
+
+	tokenBytes, err := json.Marshal(token)
+	if err != nil {
+		return err
+	}
+	tokenString := base64.StdEncoding.EncodeToString(tokenBytes)
+	s, err := o.vaultClient.Logical().Write(o.getVaultPath("encrypt"), map[string]interface{}{
+		"plaintext": tokenString,
+	})
+	if err != nil {
+		return err
+	}
+	encryptedToken := s.Data["ciphertext"]
+
 	tokenKey, err := json.Marshal(TokenKey{UserID: userID, Provider: provider})
 	if err != nil {
 		return err
 	}
 	tokenKeyString := base64.RawURLEncoding.EncodeToString(tokenKey)
 
-	_, err = o.tokenDB.Set(context.Background(), tokenKeyString, base64.RawURLEncoding.EncodeToString(tokenString), 0).Result()
+	_, err = o.tokenDB.Set(context.Background(), tokenKeyString, encryptedToken, 0).Result()
 	return err
+}
+
+func (o OAuth) getVaultPath(action string) string {
+	return fmt.Sprintf("%s/%s/%s", viper.GetString("vault_transit_path"), action, viper.GetString("vault_transit_key"))
 }
 
 func OAuthDecodeState(stateString string) (*OAuthState, error) {

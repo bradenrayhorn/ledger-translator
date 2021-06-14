@@ -19,6 +19,10 @@ func main() {
 	oauthSessionDB := NewRedisClient("oauth_sessions")
 	tokenDB := NewRedisClient("oauth_tokens")
 
+	println("creating vault client...")
+	vaultClient := createVaultClient()
+	testVaultConnection(vaultClient)
+
 	grpcClient := NewGRPCClient()
 
 	var providers []provider.Provider
@@ -29,6 +33,7 @@ func main() {
 		sessionService: service.NewSessionService(grpcClient.session),
 		sessionDB:      oauthSessionDB,
 		tokenDB:        tokenDB,
+		vaultClient:    vaultClient,
 	}
 
 	http.HandleFunc("/authenticate", controller.Authenticate)

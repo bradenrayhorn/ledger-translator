@@ -8,6 +8,7 @@ import (
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/service"
 	"github.com/go-redis/redis/v8"
+	vaultAPI "github.com/hashicorp/vault/api"
 )
 
 type RouteController struct {
@@ -15,6 +16,7 @@ type RouteController struct {
 	sessionService service.Session
 	sessionDB      *redis.Client
 	tokenDB        *redis.Client
+	vaultClient    *vaultAPI.Client
 }
 
 func (c RouteController) Authenticate(w http.ResponseWriter, req *http.Request) {
@@ -37,7 +39,7 @@ func (c RouteController) Authenticate(w http.ResponseWriter, req *http.Request) 
 		return
 	}
 
-	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB)
+	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB, c.vaultClient)
 	url, state, err := oauthService.Authenticate(provider.Key())
 
 	if err != nil {
@@ -96,12 +98,13 @@ func (c RouteController) Callback(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB)
+	oauthService := service.NewOAuthService(*provider.GetOAuthConfig(), c.tokenDB, c.vaultClient)
 	err = oauthService.SaveToken(userID, state.Provider, req.URL.Query().Get("code"))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save state")
 		return
 	}
+	w.Write([]byte("yay"))
 }
 
 func (c RouteController) getProvider(providerKey string) provider.Provider {
