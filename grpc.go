@@ -50,7 +50,7 @@ func loadVaultToken() string {
 }
 
 func createCertify() (*certify.Certify, error) {
-	url, err := url.Parse(viper.GetString("vault_url"))
+	url, err := url.Parse(viper.GetString("vault_addr"))
 	if err != nil {
 		return nil, err
 	}
