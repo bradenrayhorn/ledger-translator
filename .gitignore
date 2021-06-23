@@ -3,4 +3,4 @@ ledger-translator
 .env
 reports
 token
-
+ca.pem
