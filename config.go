@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -9,7 +10,11 @@ import (
 )
 
 func loadConfig() {
-	err := godotenv.Load()
+	envPath := os.Getenv("ENV_PATH")
+	if len(envPath) == 0 {
+		envPath = ".env"
+	}
+	err := godotenv.Load(envPath)
 	if err != nil {
 		log.Printf("failed to load .env: %e", err)
 	}

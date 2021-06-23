@@ -1,0 +1,82 @@
+
+replicaCount: 1
+
+image:
+  repository: ghcr.io/bradenrayhorn/ledger-translator
+  tag: ${{ github.sha }}
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: "ledger-translator"
+
+container:
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "ledger-translator"
+    vault.hashicorp.com/agent-pre-populate-only: "true"
+    vault.hashicorp.com/agent-inject-token: "true"
+    vault.hashicorp.com/agent-inject-secret-ca: "rootca/cert/ca"
+    vault.hashicorp.com/agent-inject-template-ca: |
+      {{ with secret "rootca/cert/ca" -}}
+        {{- .Data.certificate }}
+      {{- end }}
+    vault.hashicorp.com/agent-inject-file-ca: "ca.pem"
+    vault.hashicorp.com/agent-inject-secret-env: "kv/ledger/ledger-translator"
+    vault.hashicorp.com/agent-inject-template-env: |
+      {{ with secret "kv/ledger/ledger-translator" -}}
+        {{- range $k, $v := .Data.data }}
+          {{- $k }}="{{ $v }}"{{ "\n" }}
+        {{- end }}
+      {{- end }}
+    vault.hashicorp.com/agent-inject-file-env: ".env"
+  env:
+    ENV_PATH: /vault/secrets/.env
+  ports:
+  - 8080
+  livenessProbe:
+    httpGet:
+      path: /health-check
+      port: 8080
+  readinessProbe:
+    httpGet:
+      path: /health-check
+      port: 8080
+
+serviceAccount:
+  create: true
+  name: "ledger-translator"
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+
+ingress:
+  enabled: true
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/redirect-entry-point: https
+    ingress.kubernetes.io/custom-request-headers: 'X-Forwarded-For:||X-Real-IP:'
+  hosts:
+  - host: ${{ secrets.HOST }}
+    paths:
+    - path: /
+      port: 80
+  tls:
+  - hosts:
+    - ${{ secrets.HOST }}
+    secretName: ledger-translator-cert
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {} 
