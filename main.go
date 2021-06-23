@@ -38,6 +38,9 @@ func main() {
 
 	http.HandleFunc("/authenticate", controller.Authenticate)
 	http.HandleFunc("/callback", controller.Callback)
+	http.HandleFunc("/health-check", func(w http.ResponseWriter, req *http.Request) {
+		w.Write([]byte("ok"))
+	})
 
 	port := viper.GetString("http_port")
 	log.Printf("listening for http requests on port %s", port)
