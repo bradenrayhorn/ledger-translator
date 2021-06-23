@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto/tls"
-	"crypto/x509"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -74,25 +73,4 @@ func createCertify() (*certify.Certify, error) {
 		Logger:      logrusadapter.New(log),
 	}
 	return certify, nil
-}
-
-var certPool *x509.CertPool
-
-func GetCACertPool() *x509.CertPool {
-	if certPool != nil {
-		return certPool
-	}
-	rootCertPool := x509.NewCertPool()
-	pem, err := ioutil.ReadFile(viper.GetString("ca_cert_path"))
-	if err != nil {
-		log.Println(err.Error())
-		return nil
-	}
-
-	if ok := rootCertPool.AppendCertsFromPEM([]byte(strings.TrimSpace(string(pem)))); !ok {
-		log.Println("failed to append pem")
-		return nil
-	}
-	certPool = rootCertPool
-	return certPool
 }

@@ -30,7 +30,8 @@ container:
       {{- end }}
     vault.hashicorp.com/agent-inject-file-env: ".env"
   env:
-    ENV_PATH: /vault/secrets/.env
+    - name: ENV_PATH
+      value: /vault/secrets/.env
   ports:
   - 8080
   livenessProbe:
