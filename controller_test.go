@@ -226,8 +226,7 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	handler.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusOK, w.Code)
-	tokenKey, _ := json.Marshal(service.TokenKey{UserID: "good-user-id", Provider: "test"})
-	savedToken := s.tokenDB.Get(context.Background(), base64.RawURLEncoding.EncodeToString(tokenKey))
+	savedToken := s.tokenDB.HGet(context.Background(), "good-user-id", "test")
 	s.Require().Nil(savedToken.Err())
 	var token oauth2.Token
 	decrypted, err := s.c.vaultClient.Logical().Write("transit/decrypt/my-key", map[string]interface{}{

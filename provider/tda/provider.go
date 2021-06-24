@@ -22,12 +22,6 @@ func NewTDAProvider() tdaProvider {
 	}
 }
 
-type oauthState struct {
-	Random   string
-	JWT      string
-	Provider string
-}
-
 func (t tdaProvider) Key() string {
 	return "tda"
 }

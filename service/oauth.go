@@ -76,14 +76,7 @@ func (o OAuth) SaveToken(userID string, provider string, code string) error {
 	}
 	encryptedToken := s.Data["ciphertext"]
 
-	tokenKey, err := json.Marshal(TokenKey{UserID: userID, Provider: provider})
-	if err != nil {
-		return err
-	}
-	tokenKeyString := base64.RawURLEncoding.EncodeToString(tokenKey)
-
-	_, err = o.tokenDB.Set(context.Background(), tokenKeyString, encryptedToken, 0).Result()
-	return err
+	return o.tokenDB.HSet(context.Background(), userID, provider, encryptedToken).Err()
 }
 
 func (o OAuth) getVaultPath(action string) string {
