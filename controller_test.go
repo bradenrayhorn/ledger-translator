@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"testing"
 
@@ -48,6 +49,10 @@ func (p TestProvider) Key() string {
 	return "test"
 }
 
+func (p TestProvider) Name() string {
+	return "Test Provider"
+}
+
 func (p TestProvider) GetOAuthConfig() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID: "my client id",
@@ -59,7 +64,21 @@ func (p TestProvider) GetOAuthConfig() *oauth2.Config {
 	}
 }
 
+type TestProviderOther struct{}
+
+func (p TestProviderOther) Key() string {
+	return "test_other"
+}
+func (p TestProviderOther) Name() string {
+	return "Other Test Provider"
+}
+
+func (p TestProviderOther) GetOAuthConfig() *oauth2.Config {
+	return nil
+}
+
 func (s *ControllerTestSuite) SetupTest() {
+	os.Setenv("ENV_PATH", ".env.test")
 	loadConfig()
 	lis := bufconn.Listen(1024 * 1024)
 	sv := grpc.NewServer()
@@ -110,7 +129,7 @@ func (s *ControllerTestSuite) SetupTest() {
 	s.sessionDB = NewRedisClient("oauth_sessions")
 	s.tokenDB = NewRedisClient("oauth_tokens")
 	s.c = RouteController{
-		providers:      []provider.Provider{TestProvider{}},
+		providers:      []provider.Provider{TestProvider{}, TestProviderOther{}},
 		sessionDB:      s.sessionDB,
 		tokenDB:        s.tokenDB,
 		sessionService: service.NewSessionService(client),
@@ -238,6 +257,46 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	s.Require().Equal("access-token", token.AccessToken)
 	s.Require().Equal("refresh-token", token.RefreshToken)
 	s.Require().Equal("ok", token.TokenType)
+}
+
+// Get Provider Tests
+func (s *ControllerTestSuite) TestCannotGetProvidersUnauthorized() {
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/providers", nil)
+	handler := http.HandlerFunc(s.c.GetProviders)
+	handler.ServeHTTP(w, req)
+
+	s.Require().Equal(http.StatusUnauthorized, w.Code)
+}
+
+type GetProvidersResponse struct {
+	Providers []GetProvidersResponseProvider `json:"data"`
+}
+
+type GetProvidersResponseProvider struct {
+	Id            string `json:"id"`
+	Name          string `json:"name"`
+	Authenticated bool   `json:"authenticated"`
+}
+
+func (s *ControllerTestSuite) TestCanGetProviders() {
+	s.tokenDB.HSet(context.Background(), "good-user-id", "test", "some key here")
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/providers", nil)
+	req.Header.Add("Cookie", "session_id="+s.sessionID)
+	handler := http.HandlerFunc(s.c.GetProviders)
+	handler.ServeHTTP(w, req)
+
+	s.Require().Equal(http.StatusOK, w.Code)
+	var body GetProvidersResponse
+	_ = json.Unmarshal(w.Body.Bytes(), &body)
+
+	s.Require().Len(body.Providers, 2)
+	s.Require().Equal(body.Providers[0].Name, "Other Test Provider")
+	s.Require().Equal(body.Providers[1].Name, "Test Provider")
+	s.Require().False(body.Providers[0].Authenticated)
+	s.Require().True(body.Providers[1].Authenticated)
 }
 
 func TestControllerSuite(t *testing.T) {

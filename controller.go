@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"log"
 	"net/http"
+	"sort"
 	"time"
 
 	"github.com/bradenrayhorn/ledger-translator/provider"
@@ -105,6 +108,56 @@ func (c RouteController) Callback(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.Write([]byte("yay"))
+}
+
+func (c RouteController) GetProviders(w http.ResponseWriter, req *http.Request) {
+	cookie, err := req.Cookie("session_id")
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid session")
+		return
+	}
+
+	sessionID := cookie.Value
+	userID, err := c.sessionService.GetSession(sessionID)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid session")
+		return
+	}
+
+	res := c.tokenDB.HGetAll(context.Background(), userID)
+	if res.Err() != nil {
+		log.Printf("failed to get providers: %s", res.Err())
+		writeError(w, http.StatusInternalServerError, "failed to get providers")
+		return
+	}
+
+	userProviders := res.Val()
+
+	var providers []map[string]interface{}
+	sortedProviders := c.providers
+	sort.Sort(provider.ProviderArray(sortedProviders))
+	for _, provider := range c.providers {
+		isAuthenticated := false
+		if _, ok := userProviders[provider.Key()]; ok {
+			isAuthenticated = true
+		}
+		providers = append(providers, map[string]interface{}{
+			"id":            provider.Key(),
+			"name":          provider.Name(),
+			"authenticated": isAuthenticated,
+		})
+	}
+
+	b, err := json.Marshal(map[string]interface{}{
+		"data": providers,
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to format output")
+		return
+	}
+
+	w.Header().Add("Content-Type", "application/json")
+	w.Write(b)
 }
 
 func (c RouteController) getProvider(providerKey string) provider.Provider {
