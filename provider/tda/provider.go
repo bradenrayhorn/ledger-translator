@@ -26,6 +26,10 @@ func (t tdaProvider) Key() string {
 	return "tda"
 }
 
+func (t tdaProvider) Name() string {
+	return "TD Ameritrade"
+}
+
 func (t tdaProvider) GetOAuthConfig() *oauth2.Config {
 	return &t.oauth
 }

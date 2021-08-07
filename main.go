@@ -38,6 +38,7 @@ func main() {
 
 	http.HandleFunc("/authenticate", controller.Authenticate)
 	http.HandleFunc("/callback", controller.Callback)
+	http.HandleFunc("/api/v1/providers", controller.GetProviders)
 	http.HandleFunc("/health-check", func(w http.ResponseWriter, req *http.Request) {
 		w.Write([]byte("ok"))
 	})
