@@ -148,7 +148,9 @@ func (c RouteController) GetProviders(w http.ResponseWriter, req *http.Request) 
 		})
 	}
 
-	b, err := json.Marshal(providers)
+	b, err := json.Marshal(map[string]interface{}{
+		"data": providers,
+	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to format output")
 		return
