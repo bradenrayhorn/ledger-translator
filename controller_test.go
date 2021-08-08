@@ -258,7 +258,7 @@ func (s *ControllerTestSuite) TestCanCallback() {
 // Get Provider Tests
 func (s *ControllerTestSuite) TestCannotGetProvidersUnauthorized() {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/providers", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/providers", nil)
 	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
@@ -278,7 +278,7 @@ func (s *ControllerTestSuite) TestCanGetProviders() {
 	s.tokenDB.HSet(context.Background(), "good-user-id", "test", "some key here")
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/providers", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/providers", nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
 	s.router.ServeHTTP(w, req)
 
