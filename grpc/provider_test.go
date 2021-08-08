@@ -25,6 +25,7 @@ func TestProviderSuite(t *testing.T) {
 }
 
 func (s *ProviderSuite) SetupTest() {
+	config.LoadConfig()
 	s.lis = bufconn.Listen(1024 * 1024)
 	sv := grpc.NewServer()
 	s.tokenDB = config.NewRedisClient("oauth_tokens")

@@ -18,7 +18,7 @@ func NewProviderServiceServer(tokenRedisClient *redis.Client) ProviderServiceSer
 	}
 }
 
-func (s ProviderServiceServer) GetUserProviders(ctx context.Context, req *pbProvider.GetUserProvidersRequest) (*pbProvider.GetUserProvidersResponse, error) {
+func (s ProviderServiceServer) GetForUser(ctx context.Context, req *pbProvider.GetUserProvidersRequest) (*pbProvider.GetUserProvidersResponse, error) {
 	response := &pbProvider.GetUserProvidersResponse{}
 	res := s.tokenRedisClient.HGetAll(ctx, req.UserID)
 	if res.Err() != nil {
