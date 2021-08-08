@@ -4,6 +4,8 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/bradenrayhorn/ledger-translator/config"
+	"github.com/bradenrayhorn/ledger-translator/grpc"
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/provider/tda"
 	"github.com/bradenrayhorn/ledger-translator/service"
@@ -13,17 +15,25 @@ import (
 func main() {
 	println("ledger-translator initializing...")
 
-	loadConfig()
+	config.LoadConfig()
 
 	println("connecting to databases...")
-	oauthSessionDB := NewRedisClient("oauth_sessions")
-	tokenDB := NewRedisClient("oauth_tokens")
+	oauthSessionDB := config.NewRedisClient("oauth_sessions")
+	tokenDB := config.NewRedisClient("oauth_tokens")
 
 	println("creating vault client...")
 	vaultClient := createVaultClient()
 	testVaultConnection(vaultClient)
 
-	grpcClient := NewGRPCClient()
+	certify, err := config.CreateCertify()
+	if err != nil {
+		log.Printf("failed to create certify %s", err)
+	}
+
+	grpcServer := grpc.NewGRPCServer(tokenDB, certify, config.GetCACertPool())
+	grpcClient := NewGRPCClient(certify)
+
+	go grpcServer.Start()
 
 	var providers []provider.Provider
 	providers = append(providers, tda.NewTDAProvider())

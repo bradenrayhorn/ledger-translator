@@ -10,11 +10,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"regexp"
 	"testing"
 
 	"github.com/bradenrayhorn/ledger-protos/session"
+	"github.com/bradenrayhorn/ledger-translator/config"
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/service"
 	"github.com/go-redis/redis/v8"
@@ -78,8 +78,7 @@ func (p TestProviderOther) GetOAuthConfig() *oauth2.Config {
 }
 
 func (s *ControllerTestSuite) SetupTest() {
-	os.Setenv("ENV_PATH", ".env.test")
-	loadConfig()
+	config.LoadConfig()
 	lis := bufconn.Listen(1024 * 1024)
 	sv := grpc.NewServer()
 	session.RegisterSessionAuthenticatorServer(sv, SessionAuthenticatorServer{})
@@ -126,8 +125,8 @@ func (s *ControllerTestSuite) SetupTest() {
 
 	s.vaultListener = ln
 	s.sessionID = "good-id"
-	s.sessionDB = NewRedisClient("oauth_sessions")
-	s.tokenDB = NewRedisClient("oauth_tokens")
+	s.sessionDB = config.NewRedisClient("oauth_sessions")
+	s.tokenDB = config.NewRedisClient("oauth_tokens")
 	s.c = RouteController{
 		providers:      []provider.Provider{TestProvider{}, TestProviderOther{}},
 		sessionDB:      s.sessionDB,
