@@ -16,11 +16,11 @@ func NewSessionService(client session.SessionAuthenticatorClient) Session {
 	}
 }
 
-func (s Session) GetSession(sessionID string) (string, error) {
+func (s Session) GetSession(sessionID string, ip string, userAgent string) (string, error) {
 	r, err := s.client.Authenticate(context.Background(), &session.SessionAuthenticateRequest{
 		SessionID: sessionID,
-		UserAgent: "test",
-		IP:        "127.0.0.1",
+		UserAgent: userAgent,
+		IP:        ip,
 	})
 	if err != nil {
 		return "", err
