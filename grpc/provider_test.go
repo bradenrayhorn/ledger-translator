@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"testing"
 
 	"github.com/bradenrayhorn/ledger-protos/provider"
 	"github.com/bradenrayhorn/ledger-translator/config"
@@ -17,6 +18,10 @@ type ProviderSuite struct {
 	lis     *bufconn.Listener
 	tokenDB *redis.Client
 	suite.Suite
+}
+
+func TestProviderSuite(t *testing.T) {
+	suite.Run(t, new(ProviderSuite))
 }
 
 func (s *ProviderSuite) SetupTest() {
