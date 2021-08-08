@@ -17,6 +17,7 @@ import (
 	"github.com/bradenrayhorn/ledger-translator/config"
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/service"
+	"github.com/go-chi/chi/v5"
 	"github.com/go-redis/redis/v8"
 	"github.com/hashicorp/go-hclog"
 	vaultAPI "github.com/hashicorp/vault/api"
@@ -40,6 +41,8 @@ type ControllerTestSuite struct {
 	sessionDB     *redis.Client
 	tokenDB       *redis.Client
 	vaultListener net.Listener
+	vaultClient   *vaultAPI.Client
+	router        *chi.Mux
 }
 
 type TestProvider struct {
@@ -127,6 +130,7 @@ func (s *ControllerTestSuite) SetupTest() {
 	s.sessionID = "good-id"
 	s.sessionDB = config.NewRedisClient("oauth_sessions")
 	s.tokenDB = config.NewRedisClient("oauth_tokens")
+	s.vaultClient = vaultClient
 	s.c = RouteController{
 		providers:      []provider.Provider{TestProvider{}, TestProviderOther{}},
 		sessionDB:      s.sessionDB,
@@ -134,6 +138,7 @@ func (s *ControllerTestSuite) SetupTest() {
 		sessionService: service.NewSessionService(client),
 		vaultClient:    vaultClient,
 	}
+	s.router = CreateRouter(s.c)
 }
 
 func (s *ControllerTestSuite) TearDownTest() {
@@ -156,8 +161,7 @@ func (s *ControllerTestSuite) TestCanAuthenticate() {
 	req, _ := http.NewRequest("GET", "/authenticate?provider=test", nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
 
-	handler := http.HandlerFunc(s.c.Authenticate)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusFound, w.Code)
 	s.Require().Regexp(regexp.MustCompile("^https://example\\.com/auth.+$"), w.HeaderMap.Get("location"))
@@ -166,8 +170,7 @@ func (s *ControllerTestSuite) TestCanAuthenticate() {
 func (s *ControllerTestSuite) TestCannotAuthenticateWithNoSession() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/authenticate?provider=test", nil)
-	handler := http.HandlerFunc(s.c.Authenticate)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -176,8 +179,7 @@ func (s *ControllerTestSuite) TestCannotAuthenticateWithInvalidSession() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/authenticate?provider=test", nil)
 	req.Header.Add("Cookie", "session_id=x")
-	handler := http.HandlerFunc(s.c.Authenticate)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -186,8 +188,7 @@ func (s *ControllerTestSuite) TestCannotAuthenticateWithInvalidProvider() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/authenticate?provider=non", nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
-	handler := http.HandlerFunc(s.c.Authenticate)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnprocessableEntity, w.Code)
 }
@@ -196,8 +197,7 @@ func (s *ControllerTestSuite) TestCannotAuthenticateWithInvalidProvider() {
 func (s *ControllerTestSuite) TestCannotCallbackWithNoSession() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/callback?provider=test", nil)
-	handler := http.HandlerFunc(s.c.Callback)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -206,8 +206,7 @@ func (s *ControllerTestSuite) TestCannotCallbackWithInvalidSession() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/callback?provider=test", nil)
 	req.Header.Add("Cookie", "session_id=x")
-	handler := http.HandlerFunc(s.c.Callback)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -216,8 +215,7 @@ func (s *ControllerTestSuite) TestCannotCallbackWithInvalidProvider() {
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/callback?provider=non", nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
-	handler := http.HandlerFunc(s.c.Callback)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -227,7 +225,7 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	encodedState := base64.RawURLEncoding.EncodeToString(stateString)
 	s.sessionDB.Set(context.Background(), s.sessionID, encodedState, 0)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "http://callback?code=newcode&state="+encodedState, nil)
+	req, _ := http.NewRequest("GET", "/callback?code=newcode&state="+encodedState, nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
 
 	sv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -240,14 +238,13 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	sv.Start()
 	tokenURL = sv.URL + "/token"
 	defer sv.Close()
-	handler := http.HandlerFunc(s.c.Callback)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusOK, w.Code)
 	savedToken := s.tokenDB.HGet(context.Background(), "good-user-id", "test")
 	s.Require().Nil(savedToken.Err())
 	var token oauth2.Token
-	decrypted, err := s.c.vaultClient.Logical().Write("transit/decrypt/my-key", map[string]interface{}{
+	decrypted, err := s.vaultClient.Logical().Write("transit/decrypt/my-key", map[string]interface{}{
 		"ciphertext": savedToken.Val(),
 	})
 	s.Require().Nil(err)
@@ -261,9 +258,8 @@ func (s *ControllerTestSuite) TestCanCallback() {
 // Get Provider Tests
 func (s *ControllerTestSuite) TestCannotGetProvidersUnauthorized() {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/providers", nil)
-	handler := http.HandlerFunc(s.c.GetProviders)
-	handler.ServeHTTP(w, req)
+	req, _ := http.NewRequest("GET", "/api/v1/providers", nil)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusUnauthorized, w.Code)
 }
@@ -282,10 +278,9 @@ func (s *ControllerTestSuite) TestCanGetProviders() {
 	s.tokenDB.HSet(context.Background(), "good-user-id", "test", "some key here")
 
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/providers", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/providers", nil)
 	req.Header.Add("Cookie", "session_id="+s.sessionID)
-	handler := http.HandlerFunc(s.c.GetProviders)
-	handler.ServeHTTP(w, req)
+	s.router.ServeHTTP(w, req)
 
 	s.Require().Equal(http.StatusOK, w.Code)
 	var body GetProvidersResponse

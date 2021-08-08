@@ -30,7 +30,7 @@ func (c RouteController) Authenticate(w http.ResponseWriter, req *http.Request) 
 	}
 
 	sessionID := cookie.Value
-	_, err = c.sessionService.GetSession(sessionID)
+	_, err = c.sessionService.GetSession(sessionID, req.RemoteAddr, req.UserAgent())
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid session")
 		return
@@ -67,7 +67,7 @@ func (c RouteController) Callback(w http.ResponseWriter, req *http.Request) {
 	}
 
 	sessionID := cookie.Value
-	userID, err := c.sessionService.GetSession(sessionID)
+	userID, err := c.sessionService.GetSession(sessionID, req.RemoteAddr, req.UserAgent())
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid session")
 		return
@@ -118,7 +118,7 @@ func (c RouteController) GetProviders(w http.ResponseWriter, req *http.Request) 
 	}
 
 	sessionID := cookie.Value
-	userID, err := c.sessionService.GetSession(sessionID)
+	userID, err := c.sessionService.GetSession(sessionID, req.RemoteAddr, req.UserAgent())
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid session")
 		return
