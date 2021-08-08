@@ -125,8 +125,8 @@ func (s *ControllerTestSuite) SetupTest() {
 
 	s.vaultListener = ln
 	s.sessionID = "good-id"
-	s.sessionDB = NewRedisClient("oauth_sessions")
-	s.tokenDB = NewRedisClient("oauth_tokens")
+	s.sessionDB = config.NewRedisClient("oauth_sessions")
+	s.tokenDB = config.NewRedisClient("oauth_tokens")
 	s.c = RouteController{
 		providers:      []provider.Provider{TestProvider{}, TestProviderOther{}},
 		sessionDB:      s.sessionDB,
