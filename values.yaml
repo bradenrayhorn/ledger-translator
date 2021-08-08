@@ -34,6 +34,7 @@ container:
       value: /vault/secrets/.env
   ports:
   - 8080
+  - 9000
   livenessProbe:
     httpGet:
       path: /health-check
@@ -57,6 +58,9 @@ service:
   - port: 80
     targetPort: 8080
     name: http
+  - port: 9000
+    targetPort: 9000
+    name: grpc
 
 ingress:
   enabled: true
