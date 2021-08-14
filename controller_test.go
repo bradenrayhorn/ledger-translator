@@ -75,7 +75,7 @@ func (p TestProviderOther) Key() string {
 func (p TestProviderOther) Name() string {
 	return "Other Test Provider"
 }
-
+**
 func (p TestProviderOther) GetOAuthConfig() *oauth2.Config {
 	return nil
 }

@@ -7,25 +7,33 @@ import (
 	"log"
 	"net"
 
-	"github.com/bradenrayhorn/ledger-protos/provider"
+	pbProvider "github.com/bradenrayhorn/ledger-protos/provider"
+	pbQuotes "github.com/bradenrayhorn/ledger-protos/quotes"
+	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/go-redis/redis/v8"
+	vaultAPI "github.com/hashicorp/vault/api"
 	"github.com/johanbrandhorst/certify"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type GRPCServer struct {
 	tokenRedisClient *redis.Client
+	resolver         *ProviderResolver
 	certify          *certify.Certify
 	certPool         *x509.CertPool
 }
 
-func NewGRPCServer(tokenRedisClient *redis.Client, certify *certify.Certify, certPool *x509.CertPool) GRPCServer {
+func NewGRPCServer(tokenRedisClient *redis.Client, vaultClient *vaultAPI.Client, providers []provider.Provider, certify *certify.Certify, certPool *x509.CertPool) GRPCServer {
 	return GRPCServer{
 		tokenRedisClient: tokenRedisClient,
-		certify:          certify,
-		certPool:         certPool,
+		resolver: &ProviderResolver{
+			VaultClient: vaultClient,
+			TokenDB:     tokenRedisClient,
+			Providers:   providers,
+		},
+		certify:  certify,
+		certPool: certPool,
 	}
 }
 
@@ -44,10 +52,13 @@ func (s GRPCServer) Start() {
 		ClientCAs:      s.certPool,
 		ClientAuth:     tls.RequireAndVerifyClientCert,
 	}
+	fmt.Println(tlsConfig.ClientCAs)
 
-	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	//grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
+	grpcServer := grpc.NewServer()
 
-	provider.RegisterProviderServiceServer(grpcServer, NewProviderServiceServer(s.tokenRedisClient))
+	pbProvider.RegisterProviderServiceServer(grpcServer, NewProviderServiceServer(s.tokenRedisClient))
+	pbQuotes.RegisterQuotesServiceServer(grpcServer, NewQuotesServiceServer(s.resolver))
 
 	if err := grpcServer.Serve(lis); err != nil {
 		log.Println(err)

@@ -4,11 +4,25 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// enum representing types of providers
+
+type Type int
+
+const (
+	UserType Type = iota
+	MarketType
+)
+
+// a generic provider
+
 type Provider interface {
 	Key() string
 	Name() string
+	Types() []Type
 	GetOAuthConfig() *oauth2.Config
 }
+
+// provider array type with the ability to sort
 
 type ProviderArray []Provider
 

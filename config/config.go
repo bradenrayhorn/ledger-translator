@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/x509"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 
 func LoadConfig() {
 	envPath := os.Getenv("ENV_PATH")
+	fmt.Println(envPath)
 	if len(envPath) == 0 {
 		envPath = ".env"
 	}

@@ -68,7 +68,7 @@ func (o OAuth) SaveToken(userID string, provider string, code string) error {
 		return err
 	}
 	tokenString := base64.StdEncoding.EncodeToString(tokenBytes)
-	s, err := o.vaultClient.Logical().Write(o.getVaultPath("encrypt"), map[string]interface{}{
+	s, err := o.vaultClient.Logical().Write(getVaultPath("encrypt"), map[string]interface{}{
 		"plaintext": tokenString,
 	})
 	if err != nil {
@@ -79,7 +79,7 @@ func (o OAuth) SaveToken(userID string, provider string, code string) error {
 	return o.tokenDB.HSet(context.Background(), userID, provider, encryptedToken).Err()
 }
 
-func (o OAuth) getVaultPath(action string) string {
+func getVaultPath(action string) string {
 	return fmt.Sprintf("%s/%s/%s", viper.GetString("vault_transit_path"), action, viper.GetString("vault_transit_key"))
 }
 
@@ -95,4 +95,25 @@ func OAuthDecodeState(stateString string) (*OAuthState, error) {
 		return nil, err
 	}
 	return &state, nil
+}
+
+func DecryptOAuthToken(vaultClient *vaultAPI.Client, encryptedToken string) (*oauth2.Token, error) {
+	s, err := vaultClient.Logical().Write(getVaultPath("decrypt"), map[string]interface{}{
+		"ciphertext": encryptedToken,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var token oauth2.Token
+	tokenString, err := base64.StdEncoding.DecodeString(s.Data["plaintext"].(string))
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(tokenString, &token)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
 }

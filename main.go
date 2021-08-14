@@ -30,13 +30,13 @@ func main() {
 		log.Printf("failed to create certify %s", err)
 	}
 
-	grpcServer := grpc.NewGRPCServer(tokenDB, certify, config.GetCACertPool())
+	var providers []provider.Provider
+	providers = append(providers, tda.NewTDAProvider())
+
+	grpcServer := grpc.NewGRPCServer(tokenDB, vaultClient, providers, certify, config.GetCACertPool())
 	grpcClient := NewGRPCClient(certify)
 
 	go grpcServer.Start()
-
-	var providers []provider.Provider
-	providers = append(providers, tda.NewTDAProvider())
 
 	controller := RouteController{
 		providers:      providers,
