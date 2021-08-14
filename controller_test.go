@@ -131,7 +131,7 @@ func (s *ControllerTestSuite) SetupTest() {
 		Type: "transit",
 	})
 	s.Require().Nil(err)
-	_, err = vaultClient.Logical().Write("transit/keys/my-key", map[string]interface{}{})
+	_, err = vaultClient.Logical().Write("transit/keys/ledger_translator", map[string]interface{}{})
 	s.Require().Nil(err)
 
 	s.vaultListener = ln
