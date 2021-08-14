@@ -1,4 +1,4 @@
-package tests
+package grpc
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"github.com/bradenrayhorn/ledger-protos/market"
 	"github.com/bradenrayhorn/ledger-protos/quotes"
 	"github.com/bradenrayhorn/ledger-translator/config"
-	"github.com/bradenrayhorn/ledger-translator/grpc"
+	"github.com/bradenrayhorn/ledger-translator/internal/testutils"
 	"github.com/bradenrayhorn/ledger-translator/provider"
 	"github.com/bradenrayhorn/ledger-translator/provider/tda"
 	"github.com/go-redis/redis/v8"
@@ -44,11 +44,11 @@ func (s *TDQuotesSuite) SetupTest() {
 	tokenDB := config.NewRedisClient("oauth_tokens")
 	s.tokenDB = tokenDB
 	providers := []provider.Provider{tda.NewTDAProvider()}
-	vaultLn, vaultClient := SetupVault(s.T())
+	vaultLn, vaultClient := testutils.SetupVault(s.T())
 	s.vaultListener = vaultLn
 	s.vaultClient = vaultClient
 
-	quotes.RegisterQuotesServiceServer(sv, grpc.NewQuotesServiceServer(&grpc.ProviderResolver{
+	quotes.RegisterQuotesServiceServer(sv, NewQuotesServiceServer(&ProviderResolver{
 		TokenDB:     tokenDB,
 		Providers:   providers,
 		VaultClient: vaultClient,

@@ -1,12 +1,10 @@
-package tests
+package testutils
 
 import (
 	"io"
 	"net"
-	"os"
 	"testing"
 
-	"github.com/bradenrayhorn/ledger-translator/config"
 	"github.com/hashicorp/go-hclog"
 	vaultAPI "github.com/hashicorp/vault/api"
 	"github.com/hashicorp/vault/builtin/logical/transit"
@@ -15,11 +13,6 @@ import (
 	"github.com/hashicorp/vault/vault"
 	"github.com/stretchr/testify/require"
 )
-
-func TestMain(m *testing.M) {
-	config.LoadConfig()
-	os.Exit(m.Run())
-}
 
 func SetupVault(t *testing.T) (net.Listener, *vaultAPI.Client) {
 	vaultLogger := hclog.New(&hclog.LoggerOptions{
