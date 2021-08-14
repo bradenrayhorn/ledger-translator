@@ -67,6 +67,10 @@ func (p TestProvider) GetOAuthConfig() *oauth2.Config {
 	}
 }
 
+func (p TestProvider) Types() []provider.Type {
+	return []provider.Type{provider.MarketType}
+}
+
 type TestProviderOther struct{}
 
 func (p TestProviderOther) Key() string {
@@ -75,9 +79,13 @@ func (p TestProviderOther) Key() string {
 func (p TestProviderOther) Name() string {
 	return "Other Test Provider"
 }
-**
+
 func (p TestProviderOther) GetOAuthConfig() *oauth2.Config {
 	return nil
+}
+
+func (p TestProviderOther) Types() []provider.Type {
+	return []provider.Type{provider.MarketType}
 }
 
 func (s *ControllerTestSuite) SetupTest() {

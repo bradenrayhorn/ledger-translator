@@ -15,6 +15,7 @@ import (
 	"github.com/johanbrandhorst/certify"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type GRPCServer struct {
@@ -52,10 +53,8 @@ func (s GRPCServer) Start() {
 		ClientCAs:      s.certPool,
 		ClientAuth:     tls.RequireAndVerifyClientCert,
 	}
-	fmt.Println(tlsConfig.ClientCAs)
 
-	//grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(credentials.NewTLS(tlsConfig)))
 
 	pbProvider.RegisterProviderServiceServer(grpcServer, NewProviderServiceServer(s.tokenRedisClient))
 	pbQuotes.RegisterQuotesServiceServer(grpcServer, NewQuotesServiceServer(s.resolver))
