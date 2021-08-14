@@ -1,7 +1,6 @@
 package tests
 
 import (
-	"fmt"
 	"io"
 	"net"
 	"os"
@@ -19,7 +18,6 @@ import (
 
 func TestMain(m *testing.M) {
 	config.LoadConfig()
-	fmt.Println("test main")
 	os.Exit(m.Run())
 }
 
