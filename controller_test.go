@@ -252,7 +252,7 @@ func (s *ControllerTestSuite) TestCanCallback() {
 	savedToken := s.tokenDB.HGet(context.Background(), "good-user-id", "test")
 	s.Require().Nil(savedToken.Err())
 	var token oauth2.Token
-	decrypted, err := s.vaultClient.Logical().Write("transit/decrypt/my-key", map[string]interface{}{
+	decrypted, err := s.vaultClient.Logical().Write("transit/decrypt/ledger_translator", map[string]interface{}{
 		"ciphertext": savedToken.Val(),
 	})
 	s.Require().Nil(err)
